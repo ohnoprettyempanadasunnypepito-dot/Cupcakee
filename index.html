@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bear's Cupcake Party</title>
+    <style>
+        body {
+            margin: 0;
+            background: #fdf0f6;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none; /* Prevents scrolling while playing */
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            display: flex;
+            gap: 20px;
+            pointer-events: none;
+        }
+        .stat-box {
+            background: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 3px solid #ffb6c1;
+            color: #ff69b4;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #ffb6c1;
+        }
+        canvas {
+            background: linear-gradient(#e0f7fa, #ffffff);
+            border: 8px solid white;
+            border-radius: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            cursor: crosshair;
+        }
+        #overlay {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+        }
+        button {
+            background: #ff69b4;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #d81b60;
+            transition: 0.1s;
+        }
+        button:active { transform: translateY(3px); box-shadow: 0 2px 0 #d81b60; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div class="stat-box">Score: <span id="score">0</span></div>
+        <div class="stat-box">Level: <span id="level">1</span></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="overlay">
+        <h1 id="msgTitle" style="color: #ff69b4;">Bear's Bakery!</h1>
+        <p id="msgDesc">Catch cupcakes, avoid broccoli!</p>
+        <button id="startBtn">Start Playing 🐾</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const overlay = document.getElementById('overlay');
+    const scoreText = document.getElementById('score');
+    const levelText = document.getElementById('level');
+
+    // Resize canvas for mobile/desktop
+    canvas.width = Math.min(window.innerWidth - 40, 450);
+    canvas.height = Math.min(window.innerHeight - 150, 600);
+
+    let score = 0;
+    let level = 1;
+    let gameRunning = false;
+    let items = [];
+    let bearX = canvas.width / 2;
+    const bearWidth = 60;
+
+    // Item pool
+    const types = [
+        { char: '🧁', type: 'good', pts: 1 },
+        { char: '🍰', type: 'good', pts: 2 },
+        { char: '🍩', type: 'good', pts: 1 },
+        { char: '🥦', type: 'bad', pts: -5 },
+        { char: '✨', type: 'bonus', pts: 10 } // Rare sparkle
+    ];
+
+    // Follow mouse or touch
+    function moveBear(e) {
+        if (!gameRunning) return;
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        bearX = clientX - rect.left - bearWidth / 2;
+        
+        // Keep bear in bounds
+        if (bearX < 0) bearX = 0;
+        if (bearX > canvas.width - bearWidth) bearX = canvas.width - bearWidth;
+    }
+
+    window.addEventListener('mousemove', moveBear);
+    window.addEventListener('touchmove', moveBear);
+
+    function spawnItem() {
+        if (!gameRunning) return;
+        let chance = Math.random();
+        let type;
+        
+        if (chance > 0.95) type = types[4]; // Sparkle
+        else if (chance > 0.8) type = types[3]; // Broccoli
+        else type = types[Math.floor(Math.random() * 3)];
+
+        items.push({
+            x: Math.random() * (canvas.width - 40),
+            y: -50,
+            char: type.char,
+            type: type.type,
+            pts: type.pts,
+            speed: (Math.random() * 2 + 2) + (level * 0.5)
+        });
+        
+        // Random timing for next spawn
+        setTimeout(spawnItem, Math.max(300, 1000 - (level * 50)));
+    }
+
+    function update() {
+        if (!gameRunning) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw Ground
+        ctx.fillStyle = '#f8bbd0';
+        ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+
+        // Draw Bear
+        ctx.font = '60px serif';
+        ctx.fillText('🧸', bearX, canvas.height - 30);
+
+        // Update Items
+        for (let i = items.length - 1; i >= 0; i--) {
+            let s = items[i];
+            s.y += s.speed;
+            
+            ctx.font = '40px serif';
+            ctx.fillText(s.char, s.x, s.y);
+
+            // Catch detection
+            if (s.y > canvas.height - 90 && s.y < canvas.height - 30 &&
+                s.x > bearX - 20 && s.x < bearX + bearWidth) {
+                
+                score += s.pts;
+                if (score < 0) score = 0;
+                
+                // Level Up Logic
+                let newLevel = Math.floor(score / 10) + 1;
+                if (newLevel > level) level = newLevel;
+
+                scoreText.innerText = score;
+                levelText.innerText = level;
+                items.splice(i, 1);
+                continue;
+            }
+
+            // Game Over if we miss too many? No, let's keep it chill.
+            // Just remove if it hits the floor.
+            if (s.y > canvas.height) {
+                items.splice(i, 1);
+            }
+        }
+
+        requestAnimationFrame(update);
+    }
+
+    startBtn.onclick = () => {
+        score = 0;
+        level = 1;
+        items = [];
+        scoreText.innerText = '0';
+        levelText.innerText = '1';
+        gameRunning = true;
+        overlay.style.display = 'none';
+        spawnItem();
+        update();
+    };
+</script>
+</body>
+</html>
